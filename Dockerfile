@@ -138,7 +138,7 @@ RUN set -ex; \
     curl -fsSL -o nextcloud.tar.gz \
         "https://github.com/nextcloud/server/archive/v${NEXTCLOUD_VERSION}.tar.gz"; \
     tar -xf nextcloud.tar.gz -C /usr/src/; \
-    mv /usr/src/server-21.0.0 /usr/src/nextcloud; \
+    mv /usr/src/server-${NEXTCLOUD_VERSION} /usr/src/nextcloud; \
     gpgconf --kill all; \
     rm nextcloud.tar.*; \
     rm -rf "$GNUPGHOME" /usr/src/nextcloud/updater; \
