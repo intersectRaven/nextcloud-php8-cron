@@ -60,9 +60,9 @@ RUN set -ex; \
     ; \
     \
 # pecl will claim success even if one install fails, so we need to perform each install separately
-    pecl install APCu; \
-    pecl install memcached; \
-    pecl install redis; \
+    pecl install APCu-5.1.20; \
+    pecl install memcached-3.1.5; \
+    pecl install redis-5.3.4; \
     mkdir -p /usr/src/php/ext/imagick; \
     curl -fsSL https://github.com/Imagick/imagick/archive/06116aa24b76edaf6b1693198f79e6c295eda8a9.tar.gz | tar xvz -C "/usr/src/php/ext/imagick" --strip 1; \
     docker-php-ext-install imagick; \
@@ -125,7 +125,7 @@ RUN a2enmod headers rewrite remoteip ;\
     } > /etc/apache2/conf-available/remoteip.conf;\
     a2enconf remoteip
 
-ENV NEXTCLOUD_VERSION 21.0.0
+ENV NEXTCLOUD_VERSION 21.0.1
 
 RUN set -ex; \
     fetchDeps=" \
@@ -135,12 +135,17 @@ RUN set -ex; \
     apt-get update; \
     apt-get install -y --no-install-recommends $fetchDeps; \
     \
-    curl -fsSL -o nextcloud.tar.gz \
-        "https://github.com/nextcloud/server/archive/v${NEXTCLOUD_VERSION}.tar.gz"; \
-    tar -xf nextcloud.tar.gz -C /usr/src/; \
-    mv /usr/src/server-${NEXTCLOUD_VERSION} /usr/src/nextcloud; \
+    curl -fsSL -o nextcloud.tar.bz2 \
+        "https://download.nextcloud.com/server/releases/nextcloud-${NEXTCLOUD_VERSION}.tar.bz2"; \
+    curl -fsSL -o nextcloud.tar.bz2.asc \
+        "https://download.nextcloud.com/server/releases/nextcloud-${NEXTCLOUD_VERSION}.tar.bz2.asc"; \
+    export GNUPGHOME="$(mktemp -d)"; \
+# gpg key from https://nextcloud.com/nextcloud.asc
+    gpg --batch --keyserver ha.pool.sks-keyservers.net --recv-keys 28806A878AE423A28372792ED75899B9A724937A; \
+    gpg --batch --verify nextcloud.tar.bz2.asc nextcloud.tar.bz2; \
+    tar -xjf nextcloud.tar.bz2 -C /usr/src/; \
     gpgconf --kill all; \
-    rm nextcloud.tar.*; \
+    rm nextcloud.tar.bz2.asc nextcloud.tar.bz2; \
     rm -rf "$GNUPGHOME" /usr/src/nextcloud/updater; \
     mkdir -p /usr/src/nextcloud/data; \
     mkdir -p /usr/src/nextcloud/custom_apps; \
