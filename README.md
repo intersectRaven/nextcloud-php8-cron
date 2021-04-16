@@ -17,4 +17,4 @@ Exposing the ports from the host:
 This will make Nextcloud reachable under [http://localhost:8080](http://localhost:8080) from your host system.
 
 
-For information to further configuration, please consult the official [Nextcloud documentation](https://docs.nextcloud.com/server/latest/admin_manual/configuration_server/email_configuration.html).
+For information to further configuration, please consult the official [Nextcloud documentation](https://docs.nextcloud.com/server/latest/admin_manual/contents.html).
