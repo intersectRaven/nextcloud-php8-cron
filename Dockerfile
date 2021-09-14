@@ -1,5 +1,5 @@
 # DO NOT EDIT: created by update.sh from Dockerfile-debian.template
-FROM php:8.0-apache-buster
+FROM php:8.0-apache-bullseye
 
 # entrypoint.sh and cron.sh dependencies
 RUN set -ex; \
@@ -79,7 +79,7 @@ RUN a2enmod headers rewrite remoteip ;\
     } > /etc/apache2/conf-available/remoteip.conf;\
     a2enconf remoteip
 
-ENV NEXTCLOUD_VERSION 22.1.0
+ENV NEXTCLOUD_VERSION 22.1.1
 
 RUN set -ex; \
     fetchDeps=" \
