@@ -1,5 +1,5 @@
 # DO NOT EDIT: created by update.sh from Dockerfile-debian.template
-FROM php:8.0-apache-bullseye
+FROM php:8.4-apache-trixie
 
 # entrypoint.sh and cron.sh dependencies
 RUN set -ex; \
@@ -9,9 +9,12 @@ RUN set -ex; \
         rsync \
         bzip2 \
         busybox-static \
+        ghostscript \
+        imagemagick \
         libldap-common \
+        libmagickcore-7.q16-10-extra \
     ; \
-    rm -rf /var/lib/apt/lists/*; \
+    apt-get dist-clean; \
     \
     mkdir -p /var/spool/cron/crontabs; \
     echo '*/5 * * * * php -f /var/www/html/cron.php' > /var/spool/cron/crontabs/www-data
@@ -24,6 +27,8 @@ RUN chmod +x /usr/local/bin/install-php-extensions && sync
 
 ENV PHP_MEMORY_LIMIT 512M
 ENV PHP_UPLOAD_LIMIT 512M
+ENV PHP_OPCACHE_MEMORY_CONSUMPTION 128
+ENV IPE_GD_WITHOUTAVIF 1
 RUN set -ex; \
     \
     install-php-extensions \
@@ -32,6 +37,7 @@ RUN set -ex; \
         exif \
         gd \
         gmp \
+        igbinary \
         imagick \
         intl \
         ldap \
@@ -41,41 +47,88 @@ RUN set -ex; \
         pdo_mysql \
         pdo_pgsql \
         redis \
+        sysvsem \
         zip \
     ;
+
+# trust all ldap certificates
+RUN { \
+        echo 'TLS_REQCERT allow'; \
+    } >> /etc/ldap/ldap.conf
 
 # set recommended PHP.ini settings
 # see https://docs.nextcloud.com/server/stable/admin_manual/configuration_server/server_tuning.html#enable-php-opcache
 RUN { \
-        echo 'opcache.interned_strings_buffer=16'; \
-        echo 'opcache.revalidate_freq=5'; \
-        echo 'opcache.jit_buffer_size=100M'; \
-    } > /usr/local/etc/php/conf.d/opcache-recommended.ini; \
-    \
-    echo 'apc.enable_cli=1' >> /usr/local/etc/php/conf.d/docker-php-ext-apcu.ini; \
+        echo 'opcache.enable=1'; \
+        echo 'opcache.interned_strings_buffer=32'; \
+        echo 'opcache.jit=1255'; \
+        echo 'opcache.jit_buffer_size=128M'; \
+        echo 'opcache.max_accelerated_files=10000'; \
+        echo 'opcache.memory_consumption=${PHP_OPCACHE_MEMORY_CONSUMPTION}'; \
+        echo 'opcache.revalidate_freq=60'; \
+        echo 'opcache.save_comments=1'; \
+    } > "${PHP_INI_DIR}/conf.d/opcache-recommended.ini"; \
     \
     { \
+        echo 'apc.enable_cli=1'; \
+        echo 'apc.shm_size=128M'; \
+    } >> "${PHP_INI_DIR}/conf.d/docker-php-ext-apcu.ini"; \
+    \
+    { \
+        echo 'always_populate_raw_post_data=-1'; \
+        echo 'default_socket_timeout=600'; \
+        echo 'max_execution_time=300'; \
+        echo 'max_input_time=300'; \
         echo 'memory_limit=${PHP_MEMORY_LIMIT}'; \
-        echo 'upload_max_filesize=${PHP_UPLOAD_LIMIT}'; \
+        echo 'output_buffering=0'; \
         echo 'post_max_size=${PHP_UPLOAD_LIMIT}'; \
-    } > /usr/local/etc/php/conf.d/nextcloud.ini; \
+        echo 'upload_max_filesize=${PHP_UPLOAD_LIMIT}'; \
+    } > "${PHP_INI_DIR}/conf.d/nextcloud.ini"; \
+    \
+    { \
+        echo 'apc.serializer=igbinary'; \
+        echo 'session.serialize_handler=igbinary'; \
+    } >> "${PHP_INI_DIR}/conf.d/docker-php-ext-igbinary.ini"; \
+    \
+    { \
+        echo 'redis.session.locking_enabled = 1'; \
+        echo 'redis.session.lock_retries = -1'; \
+        echo 'redis.session.lock_wait_time = 10000'; \
+        echo 'session.gc_maxlifetime = 86400'; \
+    } > "${PHP_INI_DIR}/conf.d/redis-session.ini"; \
     \
     mkdir /var/www/data; \
+    mkdir -p /docker-entrypoint-hooks.d/pre-installation \
+             /docker-entrypoint-hooks.d/post-installation \
+             /docker-entrypoint-hooks.d/pre-upgrade \
+             /docker-entrypoint-hooks.d/post-upgrade \
+             /docker-entrypoint-hooks.d/before-starting; \
     chown -R www-data:root /var/www; \
     chmod -R g=u /var/www
 
+# set ImageMagick policy
+RUN sed -i'' 's|.*<policy domain="coder".*"PDF".*|  <policy domain="coder" rights="read \| write" pattern="PDF" />|g' \
+    /etc/ImageMagick-7/policy.xml
+
 VOLUME /var/www/html
 
-RUN a2enmod headers rewrite remoteip ;\
-    {\
-     echo RemoteIPHeader X-Real-IP ;\
-     echo RemoteIPTrustedProxy 10.0.0.0/8 ;\
-     echo RemoteIPTrustedProxy 172.16.0.0/12 ;\
-     echo RemoteIPTrustedProxy 192.168.0.0/16 ;\
-    } > /etc/apache2/conf-available/remoteip.conf;\
+RUN a2enmod headers rewrite remoteip ; \
+    { \
+     echo 'RemoteIPHeader X-Real-IP'; \
+     echo 'RemoteIPInternalProxy 10.0.0.0/8'; \
+     echo 'RemoteIPInternalProxy 172.16.0.0/12'; \
+     echo 'RemoteIPInternalProxy 192.168.0.0/16'; \
+    } > /etc/apache2/conf-available/remoteip.conf; \
     a2enconf remoteip
 
-ENV NEXTCLOUD_VERSION 23.0.3
+# set apache config LimitRequestBody
+ENV APACHE_BODY_LIMIT 1073741824
+RUN { \
+     echo 'LimitRequestBody ${APACHE_BODY_LIMIT}'; \
+    } > /etc/apache2/conf-available/apache-limits.conf; \
+    a2enconf apache-limits
+
+ENV NEXTCLOUD_VERSION 32.0.1
 
 RUN set -ex; \
     fetchDeps=" \
@@ -112,8 +165,7 @@ CMD ["apache2-foreground"]
 
 RUN apt-get update && apt-get install -y \
     supervisor \
-  && rm -rf /var/lib/apt/lists/* \
-  && mkdir /var/log/supervisord /var/run/supervisord
+  && rm -rf /var/lib/apt/lists/*
 
 COPY supervisord.conf /
 
