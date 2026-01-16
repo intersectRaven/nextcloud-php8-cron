@@ -128,7 +128,7 @@ RUN { \
     } > /etc/apache2/conf-available/apache-limits.conf; \
     a2enconf apache-limits
 
-ENV NEXTCLOUD_VERSION 32.0.3
+ENV NEXTCLOUD_VERSION 32.0.4
 
 RUN set -ex; \
     fetchDeps=" \
