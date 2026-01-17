@@ -157,8 +157,8 @@ RUN set -ex; \
     apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false $fetchDeps; \
     rm -rf /var/lib/apt/lists/*
 
-RUN sed -i 's/8.5/8.6/g' /usr/src/nextcloud/lib/versioncheck.php; \
-    sed -i 's/8.600/80600/g' /usr/src/nextcloud/lib/versioncheck.php
+RUN sed -i 's/8\.5/8\.6/g' /usr/src/nextcloud/lib/versioncheck.php; \
+    sed -i 's/80500/80600/g' /usr/src/nextcloud/lib/versioncheck.php
 
 COPY *.sh upgrade.exclude /
 COPY config/* /usr/src/nextcloud/config/
